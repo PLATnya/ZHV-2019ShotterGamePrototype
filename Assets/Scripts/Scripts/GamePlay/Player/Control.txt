@@ -1,0 +1,820 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using Unity.Mathematics;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.XR;
+using UnityStandardAssets.Characters.FirstPerson;
+using UnityEngine.Rendering.PostProcessing;
+using Scripts.Utils;
+public class Control : MonoBehaviour
+{
+
+    Transform player;
+    [SerializeField]
+    float smooth_falling_time;
+    private Vector2 input_direction;
+    Vector2 input_vector;
+
+    private Rigidbody rigid;
+    [SerializeField]
+    private bool jump;
+
+    public bool fall;
+
+
+    bool jumped;
+
+
+    public float go_speed;
+
+    public bool run;
+
+    public float jumping;
+
+    public static bool controling;
+    public static bool ground_under_me;
+
+
+
+    private float grounded_angle;
+    [SerializeField]
+    private Transform ground;
+
+
+
+    private bool jump_go;
+
+
+    public static float stamina;
+
+    private Transform camera;
+    public Transform head_top;
+
+
+    public UnityStandardAssets.Characters.FirstPerson.MouseLook mouseLook = new MouseLook();
+
+
+    Text ground_stats;
+    Slider stamina_stats;
+    public GrabTrigger grab_trigger;
+
+
+    public float limit_impule;
+    Vector3 last_ground;
+
+
+
+    Vector3 forward_vector;
+    Vector3 right_vector;
+
+
+    bool pre_jump;
+
+
+    [SerializeField]
+    int fuck;
+
+
+    int no_control;
+    Quaternion help_rotation;
+    Vector3 help_position;
+    [SerializeField]
+    float no_control_y;
+
+
+    
+
+
+    bool not_stable_ground;
+    Rigidbody ground_rigid;
+
+
+    [SerializeField]
+    float help_time;
+
+
+    // public PostProcessProfile post_profile;
+    // Bloom bloom;
+    bool Crouch;
+
+
+
+    public static Animator cam_anim;
+
+    void Start()
+    {
+
+        RigidbodyFirstPersonController contr = GetComponent<RigidbodyFirstPersonController>();
+
+        running_k = go_speed;
+        player = transform;
+        stamina = 100;
+        camera = Camera.main.transform;
+        ground = this.gameObject.transform;
+        controling = true;
+        rigid = GetComponent<Rigidbody>();
+        mouseLook.Init(transform, camera);
+        // GameObject canvas = GameObject.Find("Canvas");
+        //ground_stats = canvas.transform.GetChild(0).GetComponent<Text>();
+        //stamina_stats = canvas.transform.Find("Stamina").GetComponent<Slider>();
+
+
+
+
+
+        //post_profile.TryGetSettings<Bloom>(out bloom);
+
+
+        cam_anim = camera.parent.GetComponent<Animator>();
+
+    }
+
+    void Settings()
+    {
+        if (Input.GetKey(KeyCode.Escape))
+        {
+            Application.Quit();
+        }
+
+
+    }
+
+    /*
+    void DebugMetod()
+    {
+
+       
+        if (Input.GetKeyUp(KeyCode.J)) stamina = 100;
+
+        ground_stats.text =
+            "angle: " + grounded_angle + "   grounded: " + ground_under_me +"\n jump: "+jump+"  controlling: "+controling+"\n fall: "+fall+"  prejump: "+pre_jump;
+        stamina_stats.value = Control.stamina / 100;
+    }*/
+
+
+
+    [SerializeField]
+    float running_k;
+    Coroutine run_con;
+
+    IEnumerator RunningMode()
+    {
+        float start_r_time = 0;
+        while (true)
+        {
+            running_k = Mathf.Lerp(go_speed, go_speed * 3, start_r_time);
+            if (run)
+            {
+                if (start_r_time < 1)
+                    start_r_time += Time.deltaTime * 1.5f;
+
+
+            }
+            else
+            {
+                if (start_r_time > 0) start_r_time -= Time.deltaTime;
+            }
+
+            yield return null;
+
+        }
+
+
+    }
+
+    bool cor_go;
+    void Update()
+    {
+
+        Settings();
+        // DebugMetod();
+
+        bool running = false;
+        if (Input.GetKey(KeyCode.LeftShift)) running = true;
+
+        if (running)
+        {
+
+            if (!cor_go)
+            {
+                run_con = StartCoroutine(RunningMode());
+                cor_go = true;
+            }
+        }
+        else
+        {
+            if (running_k <= go_speed)
+            {
+                if (run_con != null && cor_go)
+                {
+                    StopCoroutine(run_con);
+                    cor_go = false;
+
+                    Debug.Log("Stoped");
+                }
+            }
+        }
+        run = running;
+        input_vector = input_direction = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+
+
+        cam_anim.SetFloat("Side", Input.GetAxis("Head Side") / 2);
+        if (controling && !pre_jump && !jump)
+        {
+            mouseLook.LookRotation(transform, camera);
+            input_direction = input_vector * running_k;
+
+
+            rigid.velocity = (forward_vector * input_direction.y + right_vector * input_direction.x);
+
+
+            float go_anim_param = 0;
+            /*if (input_direction.x != 0) go_anim_param = input_direction.x;
+            if (input_direction.y != 0) go_anim_param = input_direction.y;*/
+            go_anim_param = input_direction.magnitude;
+            go_anim_param = Mathf.Clamp(go_anim_param, 0, running_k);
+
+            cam_anim.SetFloat("Go", Math.Abs(go_anim_param) / 9 * 0.6f);
+
+
+
+
+
+
+        }
+        // && grab_trigger.Time_Managment >= 1
+        else if ((!controling && jump && !GrabTrigger.grabing) || (!controling && GrabTrigger.grabing))
+        {
+            input_direction = Vector2.zero;
+            mouseLook.LookRotation(transform, camera);
+        }
+        else
+        {
+
+            input_direction = Vector3.zero;
+        }
+
+    }
+
+    private void FixedUpdate()
+    {
+
+        FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCk();
+        /*
+        if (no_control == 0)
+            
+        else if (no_control == 1)
+        {
+            smooth_falling_time += Time.deltaTime;
+           // Debug.Log(rigid.velocity.magnitude);
+            if (smooth_falling_time>=1 && rigid.velocity.magnitude <= slow_motion_fall.limit_speed)
+            
+            {
+                if (slow_motion_fall.courutine == null)
+                {
+                    slow_motion_fall.courutine = slow_motion_fall.GoDown();
+                    StartCoroutine(slow_motion_fall.courutine);
+                    
+                }
+            }
+            if (Input.GetAxis("Vertical") > 0&&Time.timeScale<=slow_motion_fall.limit_time*2)
+            {
+                rigid.drag = 0;
+                no_control = 2; 
+                smooth_falling_time = 0;
+                rigid.isKinematic = true;
+                help_rotation = player.rotation;
+                help_position = player.position;
+
+
+
+
+                StopCoroutine(slow_motion_fall.courutine);
+                slow_motion_fall.courutine = slow_motion_fall.GoUp();
+                //slow_motion_fall.StopGoDown();
+                StartCoroutine(slow_motion_fall.courutine);
+                Debug.Log("Motherfucker3");
+
+            }
+
+        }
+        else if (no_control == 2)
+        {
+            if (smooth_falling_time < 1)
+            {
+
+                smooth_falling_time += Time.deltaTime;
+                player.rotation = Quaternion.Slerp(help_rotation, Quaternion.Euler(0, help_rotation.eulerAngles.y, 0), smooth_falling_time);
+                player.position = Vector3.Slerp(help_position, new Vector3(help_position.x, no_control_y + grab_trigger.Player_Height / 2, help_position.z), smooth_falling_time);
+            }
+            else
+            {
+                rigid.isKinematic = false;
+
+
+                no_control = 0;
+                smooth_falling_time = 1;
+                rigid.constraints = RigidbodyConstraints.FreezeRotation;
+            }
+        }
+        */
+    }
+    void ImpaactFall()
+    {
+        controling = false;
+        if (jump) jump = false;
+        if (pre_jump) pre_jump = false;
+        if (fall) fall = false;
+        smooth_falling_time = 0;
+        grab_trigger.Fall();
+
+
+    }
+
+
+    private void OnCollisionEnter(Collision other)
+    {
+
+        Vector3 local_other_position = player.InverseTransformPoint(other.contacts[0].point);
+        /*
+              float mass = 0;
+              Rigidbody rigid_other;
+              if (other.gameObject.TryGetComponent<Rigidbody>(out rigid_other))
+              {
+                  mass = rigid_other.mass*2;
+              }
+              else
+              {
+                  ///
+                  if (other.gameObject.isStatic)
+                  {
+                      Debug.Log("WALLLLLLLLL");
+                      mass = 25;
+                  }
+                  else
+                  {
+                      mass = 1;
+                  }
+
+              }
+
+
+
+
+              float force_sum = 0;
+
+
+
+
+              //Text text_debug = GameObject.Find("Canvas").transform.Find("CollisionDebug").GetComponent<Text>();
+            //  text_debug.text = "";
+
+              foreach(ContactPoint contact in other.contacts)
+              {
+                  Vector3 local_contact_point = player.InverseTransformPoint(contact.point);
+                  force_sum += Mathf.Pow(other.relativeVelocity.magnitude * BodyK(local_contact_point),2);
+               //   text_debug.text += local_contact_point + "  \n";
+
+              }
+              if (other.contactCount == 1) force_sum *= 1.5f;
+              force_sum = Mathf.Sqrt(force_sum) * Mathf.Sqrt(mass);
+
+
+
+              Debug.Log("force_sum: " + force_sum);*/
+        if (local_other_position.y < -0.7)
+        {
+
+
+            ground = other.transform;
+            ground_under_me = true;
+
+
+            if (ground.GetComponent<Rigidbody>())
+            {
+                not_stable_ground = true;
+                ground_rigid = ground.GetComponent<Rigidbody>();
+            }
+            else
+            {
+                not_stable_ground = false;
+                ground_rigid = null;
+            }
+
+        }
+
+
+        /*
+        if (force_sum>=limit_impule)
+        {
+            
+
+            GetOutControll(-other.relativeVelocity);
+           
+            
+            Debug.Log("FUCK LIMIT");    
+        }*/
+
+
+
+
+
+    }
+    enum BodyPart
+    {
+        head, body, side_legs, arms, middle_legs
+    }
+
+    float BodyK(Vector3 local_point_position)
+    {
+
+        BodyPart part = BodyPart.body;
+        float k = 0;
+        if (local_point_position.y > 0.6f)
+        {
+            k = 1;
+            part = BodyPart.head;
+        }
+        else if (local_point_position.y <= -0.1f)
+        {
+
+            if (local_point_position.x > 0.2f || local_point_position.x < -0.2f)
+            {
+                k = 0.7f;
+                part = BodyPart.side_legs;
+            }
+            else
+            {
+                k = 0.5f;
+                part = BodyPart.middle_legs;
+            }
+
+        }
+        else if (local_point_position.y > -0.1f && local_point_position.y <= 0.6f)
+        {
+            if (local_point_position.x >= 0.4f || local_point_position.x <= -0.4f)
+            {
+                k = 0.2f;
+                part = BodyPart.arms;
+            }
+            else
+            {
+                k = 0.5f;
+                part = BodyPart.body;
+            }
+        }
+
+        Debug.Log("body part: " + part);
+        Debug.Log("local point: " + local_point_position);
+
+        return k;
+    }
+
+    /*
+    IEnumerator ImpactScreen()
+    {
+        while (true)
+        {
+            yield return null;
+            if (help_time <= 0.5f)
+            {
+                bloom.intensity.Interp(0, 40, help_time * 2);
+                help_time += 0.02f;
+
+            }else if (help_time>0.5f&&help_time<1.5f)
+            {
+                bloom.intensity.Interp(40,0, help_time );
+                help_time += 0.02f;
+            }
+            else
+            {
+                help_time = 0;
+                break;
+            }
+
+        }
+    }
+    */
+
+
+    private void OnCollisionStay(Collision other)
+    {
+
+        if (no_control == 1)
+        {
+            no_control_y = other.contacts[0].point.y;
+            foreach (ContactPoint contact in other.contacts)
+            {
+                if (contact.point.y > no_control_y) no_control_y = contact.point.y;
+            }
+            no_control_y += 0.1f;
+
+
+
+        }
+
+
+
+
+        if (other.transform == ground)
+        {
+            right_vector = -Vector3.Cross(player.forward, other.contacts[0].normal).normalized;
+
+            forward_vector = Vector3.Cross(player.right, other.contacts[0].normal).normalized;
+            grounded_angle = Vector3.Angle(other.contacts[0].normal, player.up);
+
+            if (ground_under_me)
+            {
+                if (grounded_angle > 45 && ground.tag != "Stairs")
+                {
+                    float k = (input_direction.magnitude * 2);
+                    if (k == 0) k = 1;
+                    smooth_falling_time += Time.deltaTime / k;
+                    if (smooth_falling_time >= 1)
+                    {
+                        GetOutControll();
+                    }
+                }
+                else
+                {
+                    if (smooth_falling_time != 0) smooth_falling_time = 0;
+                }
+            }
+            else
+            {
+                if (grounded_angle < 45)
+                {
+                    ground_under_me = true;
+                }
+
+
+            }
+
+        }
+    }
+
+
+    void GetOutControll(Vector3 impulse)
+    {
+        // StartCoroutine(ImpactScreen());
+        ImpaactFall();
+        no_control = 1;
+        smooth_falling_time = 0;
+        controling = false;
+        ground_under_me = false;
+        rigid.constraints = RigidbodyConstraints.None;
+        rigid.velocity = impulse;
+        rigid.drag = 5;
+    }
+    void GetOutControll()
+    {
+        no_control = 1;
+        smooth_falling_time = 0;
+        controling = false;
+        ground_under_me = false;
+        rigid.constraints = RigidbodyConstraints.None;
+
+    }
+    private void OnCollisionExit(Collision other)
+    {
+        Debug.Log("FIrst Exit Point");
+        if (other.transform == ground)
+        {
+            Debug.Log("Second Exit POit");
+            ground_under_me = false;
+            ground = this.gameObject.transform;
+
+
+        }
+    }
+
+
+    void J()
+    {
+        if (ground_under_me)
+        {
+
+            if (controling && Input.GetKey(KeyCode.Space) && !jump)
+            {
+
+
+                jump = true;
+                rigid.velocity += player.up * jumping * Time.deltaTime;
+
+
+
+
+            }
+            else if (jump)
+            {
+
+                controling = true;
+                jump = false;
+            }
+            else if (fall)
+            {
+                controling = true;
+                fall = false;
+            }
+        }
+        else
+        {
+            if (jump && controling)
+            {
+
+                controling = false;
+
+            }
+            else if (!jump && controling)
+            {
+
+                fall = true;
+                controling = false;
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+    void FUCKINGEBALEGOVROTJUMP()
+    {
+
+        if (!jump)
+        {
+            if (!pre_jump)
+            {
+                if (ground_under_me)
+                {
+                    if (Input.GetKeyDown(KeyCode.Space))
+                    {
+                        pre_jump = true;
+                        controling = false;
+                    }
+
+                    if (fall)
+                    {
+                        fall = false;
+                        controling = true;
+                    }
+                }
+                else
+                {
+                    if (!fall)
+                    {
+                        controling = false;
+                        fall = true;
+                    }
+                }
+
+
+            }
+            else
+            {
+                jump = true;
+            }
+
+
+
+        }
+        else
+        {
+            if (pre_jump)
+            {
+                if (fuck == 0)
+                {
+                    rigid.AddForce(Vector3.up * 10000);
+                    fuck++;
+                }
+
+                if (ground_under_me)
+                {
+                    pre_jump = false;
+
+                    controling = true;
+                    jump = false;
+
+                }
+                else
+                {
+                    if (pre_jump)
+                    {
+                        pre_jump = false;
+                        fuck = 0;
+                    }
+                }
+            }
+            else
+            {
+
+
+            }
+
+        }
+
+
+
+    }
+
+
+    void FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCk()
+    {
+
+
+        if (ground_under_me)
+        {
+            if (not_stable_ground)
+            {
+                if (ground_rigid.velocity.magnitude >= 4 || ground_rigid.angularVelocity.magnitude >= 4)
+                {
+                    no_control = 1;
+                    smooth_falling_time = 0;
+                    controling = false;
+                    ground_under_me = false;
+                    rigid.constraints = RigidbodyConstraints.None;
+                }
+            }
+
+
+            if (!pre_jump)
+            {
+                if (Input.GetKeyDown(KeyCode.Space))
+                {
+                    if (SingleUtils.on_trigger_border && input_vector.y > 0 && Vector3.Angle(player.forward, (SingleUtils.border.GetComponent<Collider>().ClosestPoint(player.position) - player.position)) <= 30)
+                    {
+                        Debug.Log("Cheker 1");
+                        grab_trigger.GrabingForBorder(SingleUtils.border);
+
+                        fall = false;
+                        pre_jump = false;
+                        ground_under_me = false;
+                        controling = false;
+                    }
+                    else
+                    {
+                        pre_jump = true;
+                        controling = false;
+                    }
+                }
+                if (jump)
+                {
+
+                    jump = false;
+                    controling = true;
+
+                }
+            }
+            else
+
+            if (pre_jump && !jump)
+            {
+                rigid.AddForce(Vector3.up * jumping);
+
+
+            }
+
+
+
+
+            if (fall)
+            {
+                fall = false;
+                controling = true;
+            }
+
+
+        }
+        else
+        {
+            if (pre_jump)
+            {
+                jump = true;
+                pre_jump = false;
+            }
+            else if (!pre_jump && !jump)
+            {
+                fall = true;
+                controling = false;
+            }
+
+        }
+
+
+
+
+
+    }
+
+
+
+
+}
